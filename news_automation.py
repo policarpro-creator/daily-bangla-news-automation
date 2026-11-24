@@ -1,4 +1,3 @@
-
 import os
 import json
 import base64
@@ -106,8 +105,8 @@ def collect_news():
                 link = item.findtext("link", default="").strip()
 
                if title and link:
-    create_draft(title, link, source)
-    return
+                create_draft(title, link, source)
+                return
 
         except Exception as error:
             print("ERROR:", source, error)
