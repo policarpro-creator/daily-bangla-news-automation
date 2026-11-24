@@ -1,9 +1,11 @@
 
+import os
+import json
+import base64
 import urllib.request
+import urllib.error
+import urllib.parse
 import xml.etree.ElementTree as ET
-from datetime import datetime, timezone
-
-# Daily Bangla News - Free RSS Collector
 
 RSS_FEEDS = {
     "BBC Bangla": "https://feeds.bbci.co.uk/bengali/rss.xml",
@@ -13,40 +15,103 @@ RSS_FEEDS = {
     ),
 }
 
+WP_URL = os.environ["WP_URL"].rstrip("/")
+WP_USERNAME = os.environ["WP_USERNAME"]
+WP_APP_PASSWORD = os.environ["WP_APP_PASSWORD"]
+
+
+def wp_request(url, data=None):
+    credentials = f"{WP_USERNAME}:{WP_APP_PASSWORD}".encode()
+    token = base64.b64encode(credentials).decode()
+
+    headers = {
+        "Authorization": f"Basic {token}",
+        "User-Agent": "DailyBanglaNews/1.0",
+    }
+
+    if data is not None:
+        headers["Content-Type"] = "application/json"
+
+    request = urllib.request.Request(
+        url,
+        data=data,
+        headers=headers,
+        method="POST" if data is not None else "GET",
+    )
+
+    with urllib.request.urlopen(request, timeout=30) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def already_exists(title):
+    query = urllib.parse.urlencode({"search": title})
+    url = f"{WP_URL}/wp-json/wp/v2/posts?{query}"
+
+    try:
+        posts = wp_request(url)
+        return any(
+            post.get("title", {}).get("rendered", "").strip().lower()
+            == title.strip().lower()
+            for post in posts
+        )
+    except Exception as error:
+        print("Duplicate check failed:", error)
+        raise
+
+
+def create_draft(title, link, source):
+    if already_exists(title):
+        print("Already exists:", title)
+        return
+
+    content = (
+        "<p>মূল সংবাদটি পড়ুন:</p>"
+        f'<p><a href="{link}" target="_blank" '
+        f'rel="noopener noreferrer">{source} - মূল সংবাদ</a></p>'
+    )
+
+    post_data = json.dumps({
+        "title": title,
+        "content": content,
+        "status": "draft",
+    }).encode("utf-8")
+
+    result = wp_request(
+        f"{WP_URL}/wp-json/wp/v2/posts",
+        data=post_data,
+    )
+
+    print("DRAFT CREATED:", result.get("id"), title)
+
+
 def collect_news():
-    print("Daily Bangla News - RSS Collector")
-    print("Started:", datetime.now(timezone.utc).isoformat())
+    print("Daily Bangla News - WordPress Draft Collector")
 
     for source, feed_url in RSS_FEEDS.items():
-        print(f"\n--- {source} ---")
+        print("\n---", source, "---")
 
         try:
             request = urllib.request.Request(
                 feed_url,
-                headers={"User-Agent": "DailyBanglaNews/1.0"}
+                headers={"User-Agent": "DailyBanglaNews/1.0"},
             )
 
             with urllib.request.urlopen(request, timeout=20) as response:
-                xml_data = response.read()
+                root = ET.fromstring(response.read())
 
-            root = ET.fromstring(xml_data)
             items = root.findall(".//item")
-
-            if not items:
-                print("No news found.")
-                continue
 
             for item in items[:5]:
                 title = item.findtext("title", default="").strip()
                 link = item.findtext("link", default="").strip()
 
                 if title and link:
-                    print("Title:", title)
-                    print("Link:", link)
-                    print("-" * 40)
+                    create_draft(title, link, source)
 
         except Exception as error:
-            print("Could not collect news:", error)
+            print("ERROR:", source, error)
+            raise
+
 
 if __name__ == "__main__":
     collect_news()
