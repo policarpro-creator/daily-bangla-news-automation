@@ -38,8 +38,12 @@ def wp_request(url, data=None):
         method="POST" if data is not None else "GET",
     )
 
-    with urllib.request.urlopen(request, timeout=30) as response:
-        return json.loads(response.read().decode("utf-8"))
+   with urllib.request.urlopen(request, timeout=30) as response:
+    raw = response.read()
+    print("WordPress HTTP Status:", response.status)
+    print("Response Content-Type:", response.headers.get("Content-Type"))
+    print("Response Preview:", raw[:200])
+    return json.loads(raw.decode("utf-8-sig"))
 
 
 def create_draft(title, link, source):
