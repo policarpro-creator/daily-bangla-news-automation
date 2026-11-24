@@ -105,8 +105,9 @@ def collect_news():
                 title = item.findtext("title", default="").strip()
                 link = item.findtext("link", default="").strip()
 
-                if title and link:
-                    create_draft(title, link, source)
+               if title and link:
+    create_draft(title, link, source)
+    return
 
         except Exception as error:
             print("ERROR:", source, error)
