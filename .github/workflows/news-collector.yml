@@ -21,4 +21,8 @@ jobs:
           python-version: "3.12"
 
       - name: Run RSS News Collector
+        env:
+          WP_URL: ${{ secrets.WP_URL }}
+          WP_USERNAME: ${{ secrets.WP_USERNAME }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
         run: python news_automation.py
