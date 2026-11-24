@@ -1,8 +1,8 @@
+
 import os
 import json
 import base64
 import urllib.request
-import urllib.error
 import urllib.parse
 import xml.etree.ElementTree as ET
 
@@ -42,31 +42,21 @@ def wp_request(url, data=None):
         return json.loads(response.read().decode("utf-8"))
 
 
-def already_exists(title):
-    query = urllib.parse.urlencode({"search": title})
-    url = f"{WP_URL}/wp-json/wp/v2/posts?{query}"
-
-    try:
-        posts = wp_request(url)
-        return any(
-            post.get("title", {}).get("rendered", "").strip().lower()
-            == title.strip().lower()
-            for post in posts
-        )
-    except Exception as error:
-        print("Duplicate check failed:", error)
-        raise
-
-
 def create_draft(title, link, source):
-    if already_exists(title):
-        print("Already exists:", title)
-        return
+    query = urllib.parse.urlencode({"search": title})
+    check_url = f"{WP_URL}/wp-json/wp/v2/posts?{query}"
+
+    posts = wp_request(check_url)
+
+    for post in posts:
+        existing_title = post.get("title", {}).get("rendered", "")
+        if existing_title.strip().lower() == title.strip().lower():
+            print("Already exists:", title)
+            return
 
     content = (
         "<p>মূল সংবাদটি পড়ুন:</p>"
-        f'<p><a href="{link}" target="_blank" '
-        f'rel="noopener noreferrer">{source} - মূল সংবাদ</a></p>'
+        f'<p><a href="{link}">{source} - মূল সংবাদ</a></p>'
     )
 
     post_data = json.dumps({
@@ -84,33 +74,30 @@ def create_draft(title, link, source):
 
 
 def collect_news():
-    print("Daily Bangla News - WordPress Draft Collector")
+    print("Daily Bangla News - WordPress Draft Test")
 
     for source, feed_url in RSS_FEEDS.items():
-        print("\n---", source, "---")
+        print("Checking:", source)
 
-        try:
-            request = urllib.request.Request(
-                feed_url,
-                headers={"User-Agent": "DailyBanglaNews/1.0"},
-            )
+        request = urllib.request.Request(
+            feed_url,
+            headers={"User-Agent": "DailyBanglaNews/1.0"},
+        )
 
-            with urllib.request.urlopen(request, timeout=20) as response:
-                root = ET.fromstring(response.read())
+        with urllib.request.urlopen(request, timeout=20) as response:
+            root = ET.fromstring(response.read())
 
-            items = root.findall(".//item")
+        items = root.findall(".//item")
 
-            for item in items[:5]:
-                title = item.findtext("title", default="").strip()
-                link = item.findtext("link", default="").strip()
+        for item in items:
+            title = item.findtext("title", default="").strip()
+            link = item.findtext("link", default="").strip()
 
-               if title and link:
+            if title and link:
                 create_draft(title, link, source)
                 return
 
-        except Exception as error:
-            print("ERROR:", source, error)
-            raise
+    print("No news found.")
 
 
 if __name__ == "__main__":
